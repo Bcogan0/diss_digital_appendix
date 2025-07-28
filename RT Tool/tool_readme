@@ -1,0 +1,22 @@
+The reaction time analysis was converted into a tool for visualization of the results. This tool was developed using the R-Shinyapp platform and enables visualization of point estimates and probability curves. The tool integrates two primary models—a linear mixed-effects model for reaction time (RT) prediction and a survival model for estimating detection probabilities over time. Users can interact with the dashboard via two main tabs ("Reaction Time Prediction" and "Survival Analysis") and refer to an "Instructions" tab that provides detailed guidance on its use. Furthermore, through interpolation the tool enables the prediction of reaction times and probabilities for conditions that have not been explicitly tested. The accuracy of the predictions can be affected by the simplifications in the model and the assumptions associated with the regression analysis. Therefore, the tool should be used primarily for demonstration purposes and not as a general basis for functional requirements.
+The RT prediction tab uses a linear mixed-effects model to estimate a subject’s reaction time based on user-defined parameters. Key inputs include:
+•	Scenario: Train protection system (e.g. PZB, ETCS, OS).
+•	Obstacle size: The size of the obstacle in cm, which is converted into an angular size (arcmin) assuming an observation distance of 800 m.
+•	Obstacle Contrast: Either high or low, described in section 4.
+•	Speed: Train speed at the time of obstacle appearance in km/h.
+Reference curves for two fixed obstacle sizes (90 cm and 180 cm) are generated to provide contextual benchmarks.
+
+Variable	Estimate	Exp (Est.)	Std. Error	t value
+Intercept*	2.89	17.99	0.19	14.632
+Size (arcminute)*	-0.10	0.90	0.02	-4.19
+Contrast (low)*	0.15	1.16	0.08	1.95
+Speed (km/h)*	-0.01	0.99	0.001	-3.26
+TPC (OS vs. PZB)	-0.06	0.94	0.12	-0.48
+TPC (ETCS vs. PZB)*	-0.34	0.71	0.13	-2.64f
+
+The survival analysis tab visualises the probability that an object is not detected within a specified time frame using a survival model specified in Section 4.4.
+•	Scenario: Train protection system (e.g. PZB, ETCS, OS).
+•	Obstacle size: Choosen from preset options 90 cm or 180 cm.
+•	Obstacle Contrast: Either high or low, described in the section X.
+•	Speed: Choosen from preset options 40 km/h, 100 km/h or 160 km/h.
+•	Time Point (seconds): The time at which the probability of non-detection is calculated.
