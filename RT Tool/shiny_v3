@@ -1,0 +1,310 @@
+########################################
+### Reaction Time Analysis
+### Script for the contents of the ShinyApp Tool
+### For the UI and Server see shiny_tool_v3.R
+### Data: Simulator experiments in TU Berlin
+### Supplement to:
+### Dissertation Baris Cogan
+###
+### Authors: 
+### Baris Cogan(baris.cogan@tu-berlin.de)
+###
+###  
+########################################
+### Instructions: 
+### Change the directory where the data and codes are located. setwd("<directory>") 
+### 
+#setwd("C:/Users/baris/OneDrive/Dokumente/Rprojects/sense/diss/shiny")
+# Source the external models script.
+source("models.R")
+
+ui <- fluidPage(
+  titlePanel("Tool for Estimating Reaction Time and Probabilities (v1)"),
+  tabsetPanel(
+  tabPanel("Instructions",
+           fluidRow(
+             column(12,
+                    h3("How to Use This Tool"),
+                    p("This tool was developed to visualise the analysis of train driver reaction time based on the analysis in the dissertation by Baris Cogan.  
+                      However, it is important to note that this tool is for demonstration purposes only."),
+                    p("The tool consists of two main tabs:"),
+                    tags$ul(
+                      tags$li(strong("Reaction Time Prediction:"), " Here, you input the scenario, obstacle size (in cm), object contrast, and speed (in km/h). 
+                                The tool calculates the predicted reaction time based on a fitted linear mixed-effects model. 
+                                Reference curves for two fixed obstacle sizes (90 cm and 180 cm) are displayed along with a confidence interval around the prediction."),
+                      tags$li(strong("Survival Analysis:"), " In this tab, you select a scenario, obstacle size (from preset choices), contrast, speed, and a specific time point (in seconds). 
+                                The tool computes the predicted probability of not detecting the object at the chosen time and plots the survival curve for the selected condition. 
+                                The output is labeled with the selected time point and displays the probability in percentage.")
+                    ),
+                    p("Use the input controls in each tab to adjust parameters, then click the corresponding 'Predict' button to update the plots and predictions."),
+                    p("Contrast levels refer to the following stimulus colors (Object color/HEX-code):high (orange/#f18e2a) / low (brown/#9d6830),
+                    Scenarios: PZB, ETCS L2, On-sight driving."),
+                    p("For model specifications see the manuscript. For bug reports and questions: bariscogan@gmail.com."),
+                    p("March 2025")
+             )
+           )
+    ),
+    tabPanel("Reaction Time Prediction",
+             sidebarLayout(
+               sidebarPanel(
+                 selectInput("scenario", "Scenario", choices = c("pzb", "etcs", "os")),
+                 numericInput("obstacleSize", "Obstacle size (cm)", value = 90, min = 30, max = 250),
+                 selectInput("contrast", "Obstacle Contrast", choices = c("high", "low")),
+                 numericInput("speed", "Speed (km/h)", value = 40, min = 15, max = 160, step = 1),
+                 actionButton("predictRT", "Predict Reaction Time & Plot")
+               ),
+               mainPanel(
+                 uiOutput("rtOutput")
+               )
+             )
+    ),
+    tabPanel("Survival Analysis",
+             sidebarLayout(
+               sidebarPanel(
+                 selectInput("scenario2", "Scenario", choices = c("pzb", "etcs", "os")),
+                 selectInput("obstacleSize2", "Obstacle Size", choices = c("90 cm", "180 cm")),
+                 selectInput("contrast2", "Obstacle Contrast", choices = c("high", "low")),
+                 selectInput("speed2", "Speed (km/h)", choices = c("40 km/h", "100 km/h", "160 km/h")),
+                 numericInput("timePoint", "Time point (seconds)", value = 10, min = 0),
+                 actionButton("predictSurvival", "Predict Survival Rate & Plot")
+               ),
+               mainPanel(
+                 uiOutput("survOutput")
+               )
+             )
+    )
+  )
+)
+
+server <- function(input, output, session) {
+  
+  ## PAGE 1: Reaction Time Prediction
+  
+  rtPrediction <- eventReactive(input$predictRT, {
+    # Validate inputs
+    if (input$obstacleSize < 30 || input$obstacleSize > 250) {
+      return(list(warning = "Warning: Obstacle size must be between 30 cm and 250 cm."))
+    }
+    if (input$speed < 15 || input$speed > 160) {
+      return(list(warning = "Warning: Speed must be between 15 km/h and 160 km/h."))
+    }
+    if (input$scenario == "os" && input$speed > 40) {
+      return(list(warning = "Warning: For the 'os' scenario, the maximum allowed speed is 40 km/h."))
+    }
+    
+    # Convert selected obstacle size to angular size (arcmin)
+    angular_size_arcmin <- ((206265/60) * input$obstacleSize / 80000)
+    
+    storedData <- list(
+      angular_size_arcmin = angular_size_arcmin,
+      contrast_class = input$contrast,
+      speed = input$speed,
+      zbs = input$scenario
+    )
+    
+    newdata <- data.frame(
+      angular_size_arcmin = storedData$angular_size_arcmin,
+      contrast_class = storedData$contrast_class,
+      speed = storedData$speed,
+      zbs = storedData$zbs
+    )
+    
+    # Get the point prediction
+    predicted_rt <- predict_reaction_time(newdata)
+    # Get the CI prediction (values are too high, check)
+    pred_interval <- predict_CI(newdata)
+    
+    list(predicted_rt = predicted_rt,
+         ci_lower = exp(pred_interval$lwr),
+         ci_upper = exp(pred_interval$upr),
+         storedData = storedData)
+  })
+  
+  
+  output$rtOutput <- renderUI({
+    req(input$predictRT > 0)
+    tagList(
+      htmlOutput("predictedRT"),
+      plotlyOutput("reactionTimePlot")
+    )
+  })
+  
+  output$predictedRT <- renderUI({
+    req(input$predictRT > 0)
+    result <- rtPrediction()
+    if (!is.null(result$warning)) {
+      tags$div(style = "color:red;", result$warning)
+    } else {
+      rt <- result$predicted_rt
+      tags$div(style = "color:green;", paste("Predicted Reaction Time (s):", round(rt, 2)))
+    }
+  })
+  
+  output$reactionTimePlot <- renderPlotly({
+    req(input$predictRT > 0)
+    result <- rtPrediction()
+    
+    if (!is.null(result$warning)) {
+      p <- ggplot() +
+        annotate("text", x = 0.5, y = 0.5, label = result$warning, size = 6, hjust = 0.5) +
+        theme_void()
+      ggplotly(p)
+    } else {
+      storedData <- result$storedData
+      
+      speeds <- if (storedData$zbs == "os") seq(15, 40, length.out = 100) else seq(15, 160, length.out = 100)
+      
+      angular_size_90 <- ((206265/60) * 90 / 80000)
+      angular_size_180 <- ((206265/60) * 180 / 80000)
+      
+      newdata_90 <- data.frame(
+        angular_size_arcmin = angular_size_90,
+        contrast_class = storedData$contrast_class,
+        speed = speeds,
+        zbs = storedData$zbs
+      )
+      newdata_180 <- data.frame(
+        angular_size_arcmin = angular_size_180,
+        contrast_class = storedData$contrast_class,
+        speed = speeds,
+        zbs = storedData$zbs
+      )
+      
+      pred_rt_90 <- predict_reaction_time(newdata_90)
+      pred_rt_180 <- predict_reaction_time(newdata_180)
+      
+      selected_speed <- storedData$speed
+      predicted_rt <- result$predicted_rt
+      ci_lower <- result$ci_lower
+      ci_upper <- result$ci_upper
+      
+      ref_color <- if (storedData$contrast_class == "high") "orange" else "brown"
+      
+      df <- data.frame(
+        speed = speeds,
+        rt_90 = pred_rt_90,
+        rt_180 = pred_rt_180
+      )
+      
+      title_text_rt <- paste("Condition:",  storedData$zbs, "-", as.character(storedData$speed), "km/h -", input$obstacleSize, "cm -", storedData$contrast_class, "contrast")
+      
+      p <- ggplot(df, aes(x = speed)) +
+        geom_line(aes(y = rt_90, color = "Reference: 90 cm"), linetype = "dashed", size = 1.2) +
+        geom_line(aes(y = rt_180, color = "Reference: 180 cm"), size = 1.2) +
+        geom_point(aes(x = selected_speed, y = predicted_rt, color = "Predicted RT for selected condition"), size = 4) +
+        # Add error bar (vertical) for the predicted value.
+ #       geom_errorbar(data = data.frame(speed = selected_speed,
+#                                        ymin = ci_lower, ymax = ci_upper),
+#                      aes(x = speed, ymin = ymin, ymax = ymax),
+#                      width = 2, color = ref_color) +
+        labs(x = "Speed (km/h)", y = "Reaction Time (s)", color = "Legend") +
+        ggtitle(title_text_rt) +
+        scale_color_manual(values = c("Reference: 90 cm" = ref_color, "Reference: 180 cm" = ref_color, "Predicted RT for selected condition"="darkgreen")) +
+        theme_minimal() +
+        theme(text = element_text(size = 14)) +
+        {if(storedData$zbs == "os") scale_x_continuous(limits = c(15, 40)) else scale_x_continuous(limits = c(15, 160))}
+      
+      ggplotly(p)
+    }
+  })
+  
+  
+  ## PAGE 2: Survival Analysis
+  
+  survivalPrediction <- eventReactive(input$predictSurvival, {
+    storedData <- list(
+      size_class = as.factor(input$obstacleSize2),
+      contrast_class = input$contrast2,
+      speed_class = as.factor(input$speed2),
+      zbs = input$scenario2,
+      timePoint = input$timePoint
+    )
+    
+    newdata <- data.frame(
+      size_class = storedData$size_class,
+      contrast_class = storedData$contrast_class,
+      speed_class = storedData$speed_class,
+      zbs = storedData$zbs
+    )
+    
+    # Get predicted survival rate using the external function,
+    # which now returns a list with st and predict_com.
+    surv_out <- predict_survival_rate(newdata, storedData$timePoint)
+    
+    list(predicted_survival = surv_out$st, 
+         predict_com = surv_out$predict_com,
+         storedData = storedData)
+  })
+  
+  output$survOutput <- renderUI({
+    req(input$predictSurvival > 0)
+    tagList(
+      htmlOutput("predictedSurvival"),
+      plotlyOutput("survivalCurvePlot")
+    )
+  })
+  
+  output$predictedSurvival <- renderUI({
+    req(input$predictSurvival > 0)
+    survival_rate <- survivalPrediction()$predicted_survival
+    t <- input$timePoint
+    tags$div(
+      style = "color:green;",
+      paste("Probability of Not Detecting the Object at", t, ". second:", round(survival_rate * 100, 2), "%")
+    )
+  })
+  
+  
+  output$survivalCurvePlot <- renderPlotly({
+    req(input$predictSurvival > 0)
+    out <- survivalPrediction()
+    storedData <- out$storedData
+    
+    # Use the returned predict_com vector from models.R to set the time range.
+    #  quantile_vec <- out$predict_com
+    #  times <- seq(0, max(quantile_vec, na.rm = TRUE), length.out = 200)
+    
+    # For the selected condition, generate survival predictions over times.
+    newdata_sel <- data.frame(
+      size_class = storedData$size_class,
+      contrast_class = storedData$contrast_class,
+      speed_class = storedData$speed_class,
+      zbs = storedData$zbs
+    )
+    #  surv_sel <- sapply(times, function(t) predict_survival_rate(newdata_sel, t)$st)
+    
+    # Get survival at the selected time.
+    selected_out <- predict_survival_rate(newdata_sel, storedData$timePoint)
+    selected_survival <- selected_out$st
+    predict_comb <- selected_out$predict_comb
+    selected_time <- storedData$timePoint
+    
+    
+    df_surv <- data.frame(
+      time = predict_comb,
+      survival = survival
+    )
+    
+    # Determine the curve color based on contrast.
+    ref_color <- if (storedData$contrast_class == "high") "orange" else "brown"
+    
+    sorted_x <- sort(unique(df_surv$time))  # Sort the unique values of the x-axis variable in ascending order
+    max_x <- sorted_x[length(sorted_x) - 1] +2 # Get the second-largest value of x+2
+    title_text <- paste("Condition:",  storedData$zbs, "-", as.character(storedData$speed_class), "-", storedData$size_class, "-", storedData$contrast_class, "contrast")
+    
+    p <- ggplot(df_surv, aes(x = time, y = survival)) +
+      geom_line(color = ref_color, size = 1.2) +
+      labs(x = "Time (s)", y = "Survival Rate") +
+      ggtitle(title_text) +
+      theme_minimal() +
+      theme(text = element_text(size = 14)) +
+      scale_x_continuous(expand = c(0, 0), limits = c(0, max(max_x))) +
+      geom_point(aes(x = selected_time, y = selected_survival), color = "darkgreen", size = 3)+
+      geom_segment(aes(x = 0, xend = selected_time, y = selected_survival, yend = selected_survival), linetype = "dotted", color = "darkgreen", size=1) + # Add vertical line segment
+      geom_segment(aes(x = selected_time, xend = selected_time, y = 0, yend = selected_survival), linetype = "dotted", color = "darkgreen", size=1)  # Add horizontal line segment
+    
+    ggplotly(p)
+  })
+}
+
+shinyApp(ui = ui, server = server)
