@@ -1,0 +1,26 @@
+Dataset published under CC0 1.0 Universal Public Domain Dedication: Baris Cogan , Esther Bosch , Birte Thomas-Friedrich , Birgit Milius , Rustam Tagiew , (2025). Train Driver Performance Measurements in Simulator from ATO-Sense Project (ATOSenseData) [Data set]. TIB. https://doi.org/10.57806/sq41ntua
+Dataset files:
+data_atosense_bbi.xlsx: Excel spreadsheet of experiment measurements. The Excel sheet 'data' contains the dataset and the Excel sheet 'Legende' contains the description of the columns.
+Rohdaten_BBI.zip: This is the raw data for the measurements of the Excel spreadsheet. Each simulation experiment run with multiple stimuli presented to a subject is recorded as an XML file in a folder named according to the train control system. 'FAS' means no train protection system, 'PZB' means point train control and 'ETCS' means European Train Control System. Each subject in each experiment run is encoded by an ID which is the name of the XML file.
+Meaning of relevant attributes of the XML entries:
+'FahrtParameter' is a special parameter. '48' means that the train horn was sounded.
+'Fahrtkm' is the position on the route in km
+'Kennung_FahrtZeitms' is time measured in ms
+'Fahrtweg' is the drive way in m
+'Fahrtsp' is the speed in m/s
+Locations for stimuli:
+Rohdaten_BBI\Trigger_Locations.xlsx contains the locations where the stimuli become visible to the subjects in the column 'Approximate KM' in terms of 'Fahrtkm'.
+Example: Stimulus 3 in Rohdaten_BBI\PZB\B11.xml
+The stimulus 3 becomes visible at
+Fahrtkm="35.8001"
+Kennung_FahrtZeitms="2023-02-01 10:19:21:810"
+FahrtWeg="25925.7656"
+The reaction is recorded at
+FahrtParameter="48"
+Fahrtkm="36.0738"
+Kennung_FahrtZeitms="2023-02-01 10:19:46:535"
+FahrtWeg="26207.1484"
+Fahrtsp="11.6967"
+Calculation
+The reaction time is therefore (2023-02-01 10:19:46:535) – (2023-02-01 10:19:21:810) = 24.725 s
+The driven distance since the visibility of the stimulus 3 is 26207.1484 - 25925.7656 = 281.38 m
