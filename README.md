@@ -1,5 +1,8 @@
 A Simulator-Based Analysis of Train Driver Perception Performance for Benchmarking Automatic Train Operation
 
+Dissertation by Baris Cogan
+Technical University of Berlin
+
 Digital appendix that includes:
 1. Experiment data: Raw measurements and processed data tables (csv, xml, xlsx).
 2. Reaction-time analysis tool: full R/Shiny source code and documentation.
